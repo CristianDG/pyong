@@ -1,16 +1,19 @@
 import sys
 import random
+import math
 from dataclasses import dataclass
 from enum import Enum, auto
 from time import sleep
-from ctypes import byref, c_uint8, c_int, c_uint32, CFUNCTYPE
+from ctypes import byref, c_uint8, c_int, c_uint32, CFUNCTYPE, c_float
 from sdl2 import *
+from sdl2.sdlttf import *
 
 WINDOW_WIDTH, WINDOW_HEIGHT  = 1280, 720
 
 FRAMERATE = 75
 
 PADDLE_WIDTH  = 25
+BALL_WIDTH = 25
 PADDLE_HEIGHT = 200
 
 PADDLE_VEL = 200
@@ -21,14 +24,18 @@ p2_paddle  = None
 ball       = None
 game_state = None
 
+font = None
+
 class GameEventType(Enum):
-    P1_UP   = auto()
-    P1_DOWN = auto()
-    P2_UP   = auto()
-    P2_DOWN = auto()
-    START   = auto()
-    RESTART = auto()
-    STOP    = auto()
+    P1_UP     = auto()
+    P1_DOWN   = auto()
+    P2_UP     = auto()
+    P2_DOWN   = auto()
+    P1_SCORED = auto()
+    P2_SCORED = auto()
+    START     = auto()
+    RESTART   = auto()
+    STOP      = auto()
 
 
 
@@ -80,8 +87,8 @@ def initialize():
         global ball
 
         ball = { 'rect': base_rect.copy(), 'physics': base_physics.copy() }
-        ball['rect']['h'] = PADDLE_WIDTH
-        ball['rect']['w'] = PADDLE_WIDTH
+        ball['rect']['h'] = BALL_WIDTH
+        ball['rect']['w'] = BALL_WIDTH
         ball['rect']['x'] = (WINDOW_WIDTH // 2) - (ball['rect']['w']//2)
         ball['rect']['y'] = (WINDOW_HEIGHT // 2) - (ball['rect']['h']//2)
     initialize_ball()
@@ -101,6 +108,17 @@ def render(renderer, window):
     SDL_RenderFillRectF(renderer, p1_rect)
     SDL_RenderFillRectF(renderer, p2_rect)
     SDL_RenderFillRectF(renderer, ball_rect)
+
+    # TODO
+    # color = SDL_Color(255,255,255)
+    # surface = TTF_RenderUTF8_Solid(font, str.encode(str(game_state['p1_score'])), color)
+
+    # print(SDL_GetError())
+    # texture = SDL_CreateTextureFromSurface(renderer, surface)
+
+    # SDL_RenderCopy(renderer, texture, None, rect)
+    # SDL_FreeSurface(surface)
+
     SDL_RenderPresent(renderer)
 
 
@@ -131,32 +149,56 @@ def handle_event(event: GameEventType, dt = 1/FRAMERATE):
     if event == GameEventType.START and not game_state['started']:
         game_state['started'] = True
         ball['physics']['dir'] = [random.choice([-1,1]) * 1,0] # Randomizar mais
-        ball['physics']['vel'] = 200 * dt # Mudar
+        ball['physics']['vel'] = 300 * dt # Mudar
 
 
 def update(dt = 1/FRAMERATE):
 
     # physics update
+
+    if check_border_collision([[0,0],[WINDOW_WIDTH,0]], ball) \
+    or check_border_collision([[0,WINDOW_HEIGHT],[WINDOW_WIDTH, WINDOW_HEIGHT]], ball):
+        ball['physics']['dir'][1] *= -1
+        print('???')
+
     ball['rect']['x'] = ball['rect']['x'] + ball['physics']['vel'] * ball['physics']['dir'][0]
+    ball['rect']['y'] = ball['rect']['y'] + ball['physics']['vel'] * ball['physics']['dir'][1]
 
 
-    if check_collision(p1_paddle, ball) or check_collision(p2_paddle, ball):
-        paddle = p1_paddle if ball['rect']['x'] < WINDOW_WIDTH / 2 else p2_paddle
 
-        ball['physics']['dir'][0] *= -1
+    if check_border_collision([[0,0],[0,WINDOW_HEIGHT]], ball):
+        handle_event(GameEventType.P2_SCORED)
         pass
 
-def check_collision(paddle, ball):
+
+    if check_paddle_collision(p1_paddle, ball) or check_paddle_collision(p2_paddle, ball):
+        paddle = p1_paddle if ball['rect']['x'] < WINDOW_WIDTH / 2 else p2_paddle
+
+        paddle_midpos = paddle['rect']['y'] + (PADDLE_HEIGHT / 2)
+        ball_midpos = ball['rect']['y'] + (BALL_WIDTH / 2)
+
+        ball['physics']['dir'][1] = .5 * (1 if (ball_midpos - paddle_midpos) > 0 else -1)
+        ball['physics']['dir'][0] *= -1
+
+def check_paddle_collision(paddle, ball):
     paddle_rect = SDL_FRect(**paddle['rect'])
     ball_rect   = SDL_FRect(**ball['rect'])
 
     return SDL_HasIntersectionF(paddle_rect, ball_rect) == SDL_TRUE
 
+def check_border_collision(border, ball):
+    ball_rect = SDL_FRect(**ball['rect'])
+
+    return SDL_IntersectFRectAndLine(ball_rect,
+                                     c_float(border[0][0]), c_float(border[0][1]),
+                                     c_float(border[1][0]), c_float(border[1][1])) == SDL_TRUE
 
 
 def main():
+    global font
 
     SDL_Init(SDL_INIT_VIDEO)
+    TTF_Init()
     window = SDL_CreateWindow(b"Pong",
                               SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                               WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN)
@@ -165,6 +207,7 @@ def main():
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE)
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE)
 
+    font = TTF_OpenFont(b'dist\\font.ttf', 24)
 
     initialize()
 
@@ -207,6 +250,7 @@ def main():
         sleep(1/FRAMERATE)
 
     SDL_DestroyWindow(window)
+    TTF_Quit()
     SDL_Quit()
     return 0
 

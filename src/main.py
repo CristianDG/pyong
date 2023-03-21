@@ -1,10 +1,11 @@
 import sys
+import os
 import random
 import math
 from dataclasses import dataclass
 from enum import Enum, auto
 from time import sleep
-from ctypes import byref, c_uint8, c_int, c_uint32, CFUNCTYPE, c_float
+from ctypes import byref, c_uint8, c_int, c_uint32, CFUNCTYPE, c_float, c_long, pointer
 from sdl2 import *
 from sdl2.sdlttf import *
 
@@ -76,7 +77,7 @@ def initialize():
         global p2_paddle
 
         p2_paddle = { 'rect': base_rect.copy(), 'physics': base_physics.copy() }
-        p2_paddle['rect']['x'] = WINDOW_WIDTH - 50
+        p2_paddle['rect']['x'] = WINDOW_WIDTH - 50 - PADDLE_WIDTH
         p2_paddle['rect']['y'] = (WINDOW_HEIGHT // 2) - (PADDLE_HEIGHT//2)
         p2_paddle['rect']['h'] = PADDLE_HEIGHT
         p2_paddle['rect']['w'] = PADDLE_WIDTH
@@ -110,14 +111,20 @@ def render(renderer, window):
     SDL_RenderFillRectF(renderer, ball_rect)
 
     # TODO
-    # color = SDL_Color(255,255,255)
-    # surface = TTF_RenderUTF8_Solid(font, str.encode(str(game_state['p1_score'])), color)
 
-    # print(SDL_GetError())
-    # texture = SDL_CreateTextureFromSurface(renderer, surface)
+    p1_score_color = SDL_Color(255,255,255, 255)
+    p1_score_surface = TTF_RenderUTF8_Solid(font, str.encode(str(game_state['p1_score'])), p1_score_color)
+    p1_score_texture = SDL_CreateTextureFromSurface(renderer, p1_score_surface)
+    p1_score_rect = SDL_Rect(50,50,p1_score_surface.contents.w, p1_score_surface.contents.h)
+    SDL_RenderCopy(renderer, p1_score_texture, None, p1_score_rect)
+    SDL_FreeSurface(p1_score_surface)
 
-    # SDL_RenderCopy(renderer, texture, None, rect)
-    # SDL_FreeSurface(surface)
+    p2_score_color = SDL_Color(255,255,255, 255)
+    p2_score_surface = TTF_RenderUTF8_Solid(font, str.encode(str(game_state['p2_score'])), p2_score_color)
+    p2_score_texture = SDL_CreateTextureFromSurface(renderer, p2_score_surface)
+    p2_score_rect = SDL_Rect(WINDOW_WIDTH - p2_score_surface.contents.w - 50, 50,p2_score_surface.contents.w, p2_score_surface.contents.h)
+    SDL_RenderCopy(renderer, p2_score_texture, None, p2_score_rect)
+    SDL_FreeSurface(p2_score_surface)
 
     SDL_RenderPresent(renderer)
 
@@ -207,7 +214,8 @@ def main():
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE)
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE)
 
-    font = TTF_OpenFont(b'dist\\font.ttf', 24)
+
+    font = TTF_OpenFont(str.encode(os.path.join(os.path.dirname(__file__), 'assets', 'font.ttf')), 100)
 
     initialize()
 

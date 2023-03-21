@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "76a0a2230ef473d97656099cd19a80bb8baf793081a442cb5f18b6cdcc9ada31"
+            "sha256": "8c8f928e52871eea28dfcb429a0418ca1e64843afebb2a22f52933087fca3a27"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -22,6 +22,21 @@
             ],
             "index": "pypi",
             "version": "==0.9.15"
+        },
+        "pysdl2-dll": {
+            "hashes": [
+                "sha256:4ab0639f1e9000e1cb7806d9846217d44940a191371a8aec2200c03dfefbf654",
+                "sha256:5a27fab38e12e904375273fde4006862c414efd0e0470ff9fad1e9a473ac818d",
+                "sha256:632ecd0aa33e0fd54dbcfaffcf136ac86e78cf243f8bb0e849259e29ab280bd0",
+                "sha256:63c05dc7b00f0a47551ef8975666fa29944bf9f03876a1ed013b238f8d914f5a",
+                "sha256:67e302953f8822796fbaea90aca7223835f6f7081ee9b2657a6b1106bae2bf0d",
+                "sha256:9b3cfa33a71232d753398c52df8cba1defa152731fe0053d77bfbf54079f5d4d",
+                "sha256:baa7060f416b7d0babce0f91090ca888b15f8f77408d20aa57a5105c88c092c0",
+                "sha256:bacba1a1b047d370c260bf66e75206f97469456611abbb5f3197c52e66ddf547",
+                "sha256:bd7ae82e0fdf892e6630f5e446cca2ad72d34d1df9da9797654eff98485ffeb6"
+            ],
+            "index": "pypi",
+            "version": "==2.26.2"
         }
     },
     "develop": {}

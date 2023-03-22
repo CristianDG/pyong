@@ -19,6 +19,8 @@ PADDLE_HEIGHT = 200
 
 PADDLE_VEL = 200
 
+UPPER_BORDER = [[0,200],[WINDOW_WIDTH,200]]
+LOWER_BORDER = [[0,WINDOW_HEIGHT],[WINDOW_WIDTH, WINDOW_HEIGHT]]
 
 p1_paddle  = None
 p2_paddle  = None
@@ -26,6 +28,16 @@ ball       = None
 game_state = None
 
 font = None
+
+def initialize_p2_paddle_pos():
+    global p2_paddle
+    p2_paddle['rect']['x'] = WINDOW_WIDTH - 50 - PADDLE_WIDTH
+    p2_paddle['rect']['y'] = (WINDOW_HEIGHT // 2) - (PADDLE_HEIGHT//2)
+
+def initialize_p1_paddle_pos():
+    global p1_paddle
+    p1_paddle['rect']['x'] = 50
+    p1_paddle['rect']['y'] = (WINDOW_HEIGHT // 2) - (PADDLE_HEIGHT//2)
 
 class GameEventType(Enum):
     P1_UP     = auto()
@@ -36,9 +48,14 @@ class GameEventType(Enum):
     P2_SCORED = auto()
     START     = auto()
     RESTART   = auto()
-    STOP      = auto()
+    PAUSE     = auto()
+    UNPAUSE   = auto()
 
+def initialize_ball_pos():
+    global ball
 
+    ball['rect']['x'] = (WINDOW_WIDTH // 2) - (ball['rect']['w']//2)
+    ball['rect']['y'] = (WINDOW_HEIGHT // 2) - (ball['rect']['h']//2)
 
 def initialize():
 
@@ -66,22 +83,20 @@ def initialize():
         global p1_paddle
 
         p1_paddle = { 'rect': base_rect.copy(), 'physics': base_physics.copy() }
-        p1_paddle['rect']['x'] = 50
-        p1_paddle['rect']['y'] = (WINDOW_HEIGHT // 2) - (PADDLE_HEIGHT//2)
         p1_paddle['rect']['h'] = PADDLE_HEIGHT
         p1_paddle['rect']['w'] = PADDLE_WIDTH
         p1_paddle['physics']['res'] = 1
+        initialize_p1_paddle_pos()
     initialize_p1_paddle()
 
     def initialize_p2_paddle():
         global p2_paddle
 
         p2_paddle = { 'rect': base_rect.copy(), 'physics': base_physics.copy() }
-        p2_paddle['rect']['x'] = WINDOW_WIDTH - 50 - PADDLE_WIDTH
-        p2_paddle['rect']['y'] = (WINDOW_HEIGHT // 2) - (PADDLE_HEIGHT//2)
         p2_paddle['rect']['h'] = PADDLE_HEIGHT
         p2_paddle['rect']['w'] = PADDLE_WIDTH
         p2_paddle['physics']['res'] = 1
+        initialize_p2_paddle_pos()
     initialize_p2_paddle()
 
     def initialize_ball():
@@ -90,8 +105,8 @@ def initialize():
         ball = { 'rect': base_rect.copy(), 'physics': base_physics.copy() }
         ball['rect']['h'] = BALL_WIDTH
         ball['rect']['w'] = BALL_WIDTH
-        ball['rect']['x'] = (WINDOW_WIDTH // 2) - (ball['rect']['w']//2)
-        ball['rect']['y'] = (WINDOW_HEIGHT // 2) - (ball['rect']['h']//2)
+        initialize_ball_pos()
+
     initialize_ball()
 
 
@@ -141,41 +156,72 @@ def clamp(val):
 
 
 def handle_event(event: GameEventType, dt = 1/FRAMERATE):
-    if event == GameEventType.P1_UP:
-        p1_paddle['rect']['y'] = clamp(p1_paddle['rect']['y'] - PADDLE_VEL * dt)(min_val=0)
-    elif event == GameEventType.P1_DOWN:
-        p1_paddle['rect']['y'] = clamp(p1_paddle['rect']['y'] + PADDLE_VEL * dt)(max_val=WINDOW_HEIGHT - PADDLE_HEIGHT)
-    elif event == GameEventType.P2_UP:
-        p2_paddle['rect']['y'] = clamp(p2_paddle['rect']['y'] - PADDLE_VEL * dt)(min_val=0)
-    elif event == GameEventType.P2_DOWN:
-        p2_paddle['rect']['y'] = clamp(p2_paddle['rect']['y'] + PADDLE_VEL * dt)(max_val=WINDOW_HEIGHT - PADDLE_HEIGHT)
+    if not game_state['paused']:
+        if event == GameEventType.P1_UP:
+            p1_paddle['rect']['y'] = clamp(p1_paddle['rect']['y'] - PADDLE_VEL * dt)(min_val=UPPER_BORDER[0][1])
+        elif event == GameEventType.P1_DOWN:
+            p1_paddle['rect']['y'] = clamp(p1_paddle['rect']['y'] + PADDLE_VEL * dt)(max_val=LOWER_BORDER[0][1] - p1_paddle['rect']['h'])
+        elif event == GameEventType.P2_UP:
+            p2_paddle['rect']['y'] = clamp(p2_paddle['rect']['y'] - PADDLE_VEL * dt)(min_val=UPPER_BORDER[0][1])
+        elif event == GameEventType.P2_DOWN:
+            p2_paddle['rect']['y'] = clamp(p2_paddle['rect']['y'] + PADDLE_VEL * dt)(max_val=LOWER_BORDER[0][1] - p2_paddle['rect']['h'])
 
     if event == GameEventType.RESTART:
         initialize()
 
+
     if event == GameEventType.START and not game_state['started']:
-        game_state['started'] = True
+        game_state['started']  = True
+        game_state['paused']   = False
         ball['physics']['dir'] = [random.choice([-1,1]) * 1,0] # Randomizar mais
-        ball['physics']['vel'] = 300 * dt # Mudar
+        ball['physics']['vel'] = 500 * dt # Mudar
+
+    if event == GameEventType.P1_SCORED:
+        game_state['p1_score'] += 1
+        ball['physics']['dir'] = [1, 0]
+        initialize_ball_pos()
+        initialize_p1_paddle_pos()
+        initialize_p2_paddle_pos()
+        handle_event(GameEventType.PAUSE)
+
+    if event == GameEventType.P2_SCORED:
+        game_state['p2_score'] += 1
+        ball['physics']['dir'] = [-1, 0]
+        initialize_ball_pos()
+        initialize_p1_paddle_pos()
+        initialize_p2_paddle_pos()
+        handle_event(GameEventType.PAUSE)
+
+    if event == GameEventType.PAUSE:
+        game_state['paused'] = True
+
+    if event == GameEventType.UNPAUSE:
+        game_state['paused'] = False
+
+
+
 
 
 def update(dt = 1/FRAMERATE):
 
     # physics update
+    if game_state['paused']:
+        return
 
-    if check_border_collision([[0,0],[WINDOW_WIDTH,0]], ball) \
-    or check_border_collision([[0,WINDOW_HEIGHT],[WINDOW_WIDTH, WINDOW_HEIGHT]], ball):
+
+    if check_border_collision(UPPER_BORDER, ball) \
+    or check_border_collision(LOWER_BORDER, ball):
         ball['physics']['dir'][1] *= -1
-        print('???')
 
     ball['rect']['x'] = ball['rect']['x'] + ball['physics']['vel'] * ball['physics']['dir'][0]
     ball['rect']['y'] = ball['rect']['y'] + ball['physics']['vel'] * ball['physics']['dir'][1]
 
 
-
     if check_border_collision([[0,0],[0,WINDOW_HEIGHT]], ball):
         handle_event(GameEventType.P2_SCORED)
-        pass
+
+    if check_border_collision([[WINDOW_WIDTH,0],[WINDOW_WIDTH,WINDOW_HEIGHT]], ball):
+        handle_event(GameEventType.P1_SCORED)
 
 
     if check_paddle_collision(p1_paddle, ball) or check_paddle_collision(p2_paddle, ball):
@@ -235,6 +281,10 @@ def main():
                 handle_event(GameEventType.STOP)
             elif keystate[SDL_SCANCODE_R]:
                 handle_event(GameEventType.RESTART)
+            elif keystate[SDL_SCANCODE_P]:
+                handle_event(GameEventType.PAUSE)
+            elif keystate[SDL_SCANCODE_U]:
+                handle_event(GameEventType.UNPAUSE)
 
         keystate = SDL_GetKeyboardState(None)
         if keystate[SDL_SCANCODE_Q]:

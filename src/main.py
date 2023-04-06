@@ -15,12 +15,19 @@ FRAMERATE = 75
 
 PADDLE_WIDTH  = 25
 BALL_WIDTH = 25
+BALL_VEL = 1000
 PADDLE_HEIGHT = 200
 
 PADDLE_VEL = 200
 
-UPPER_BORDER = [[0,200],[WINDOW_WIDTH,200]]
-LOWER_BORDER = [[0,WINDOW_HEIGHT],[WINDOW_WIDTH, WINDOW_HEIGHT]]
+UPPER_BORDER_Y = 150
+UPPER_BORDER = [[0,UPPER_BORDER_Y],[WINDOW_WIDTH,UPPER_BORDER_Y]]
+
+LOWER_BORDER_Y = WINDOW_HEIGHT
+LOWER_BORDER = [[0,LOWER_BORDER_Y],[WINDOW_WIDTH, LOWER_BORDER_Y]]
+
+LEFT_BORDER  = [[0,0],[0,WINDOW_HEIGHT]]
+RIGHT_BORDER = [[WINDOW_WIDTH,0],[WINDOW_WIDTH,WINDOW_HEIGHT]]
 
 p1_paddle  = None
 p2_paddle  = None
@@ -32,12 +39,12 @@ font = None
 def initialize_p2_paddle_pos():
     global p2_paddle
     p2_paddle['rect']['x'] = WINDOW_WIDTH - 50 - PADDLE_WIDTH
-    p2_paddle['rect']['y'] = (WINDOW_HEIGHT // 2) - (PADDLE_HEIGHT//2)
+    p2_paddle['rect']['y'] = (WINDOW_HEIGHT + UPPER_BORDER_Y - PADDLE_HEIGHT)//2
 
 def initialize_p1_paddle_pos():
     global p1_paddle
     p1_paddle['rect']['x'] = 50
-    p1_paddle['rect']['y'] = (WINDOW_HEIGHT // 2) - (PADDLE_HEIGHT//2)
+    p1_paddle['rect']['y'] = (WINDOW_HEIGHT + UPPER_BORDER_Y - PADDLE_HEIGHT)//2
 
 class GameEventType(Enum):
     P1_UP     = auto()
@@ -51,11 +58,12 @@ class GameEventType(Enum):
     PAUSE     = auto()
     UNPAUSE   = auto()
 
-def initialize_ball_pos():
+def initialize_ball_pos_and_vel():
     global ball
 
-    ball['rect']['x'] = (WINDOW_WIDTH // 2) - (ball['rect']['w']//2)
-    ball['rect']['y'] = (WINDOW_HEIGHT // 2) - (ball['rect']['h']//2)
+    ball['rect']['x'] = (WINDOW_WIDTH - ball['rect']['w'])//2
+    ball['rect']['y'] = (WINDOW_HEIGHT + UPPER_BORDER_Y - ball['rect']['h'])//2
+    ball['physics']['vel'] = BALL_VEL * 0.5
 
 def initialize():
 
@@ -67,8 +75,6 @@ def initialize():
     }
 
     base_physics = {
-        'acc': 0,
-        'res': 0,
         'vel': 0,
         'dir': [0,0]
     }
@@ -85,7 +91,6 @@ def initialize():
         p1_paddle = { 'rect': base_rect.copy(), 'physics': base_physics.copy() }
         p1_paddle['rect']['h'] = PADDLE_HEIGHT
         p1_paddle['rect']['w'] = PADDLE_WIDTH
-        p1_paddle['physics']['res'] = 1
         initialize_p1_paddle_pos()
     initialize_p1_paddle()
 
@@ -95,7 +100,6 @@ def initialize():
         p2_paddle = { 'rect': base_rect.copy(), 'physics': base_physics.copy() }
         p2_paddle['rect']['h'] = PADDLE_HEIGHT
         p2_paddle['rect']['w'] = PADDLE_WIDTH
-        p2_paddle['physics']['res'] = 1
         initialize_p2_paddle_pos()
     initialize_p2_paddle()
 
@@ -105,7 +109,7 @@ def initialize():
         ball = { 'rect': base_rect.copy(), 'physics': base_physics.copy() }
         ball['rect']['h'] = BALL_WIDTH
         ball['rect']['w'] = BALL_WIDTH
-        initialize_ball_pos()
+        initialize_ball_pos_and_vel()
 
     initialize_ball()
 
@@ -114,6 +118,7 @@ def render(renderer, window):
     p1_rect   = SDL_FRect(**p1_paddle['rect'])
     p2_rect   = SDL_FRect(**p2_paddle['rect'])
     ball_rect = SDL_FRect(**ball['rect'])
+    upper_border_rect = SDL_FRect(0, UPPER_BORDER_Y - 2, WINDOW_WIDTH, 1)
 
     window_rect = SDL_FRect(w=WINDOW_WIDTH, h=WINDOW_HEIGHT)
 
@@ -124,6 +129,7 @@ def render(renderer, window):
     SDL_RenderFillRectF(renderer, p1_rect)
     SDL_RenderFillRectF(renderer, p2_rect)
     SDL_RenderFillRectF(renderer, ball_rect)
+    SDL_RenderFillRectF(renderer, upper_border_rect)
 
     # TODO
 
@@ -154,9 +160,18 @@ def clamp(val):
             return val
     return inner
 
+def center(rect):
+    return {
+        'x': rect['x'] + (rect['w'] / 2),
+        'y': rect['y'] + (rect['h'] / 2)
+    }
 
-def handle_event(event: GameEventType, dt = 1/FRAMERATE):
+
+def handle_event(event: GameEventType):
     if not game_state['paused']:
+        #TODO: mudar o lugar para não usar dt nessa função
+
+        dt = 1/FRAMERATE
         if event == GameEventType.P1_UP:
             p1_paddle['rect']['y'] = clamp(p1_paddle['rect']['y'] - PADDLE_VEL * dt)(min_val=UPPER_BORDER[0][1])
         elif event == GameEventType.P1_DOWN:
@@ -174,12 +189,11 @@ def handle_event(event: GameEventType, dt = 1/FRAMERATE):
         game_state['started']  = True
         game_state['paused']   = False
         ball['physics']['dir'] = [random.choice([-1,1]) * 1,0] # Randomizar mais
-        ball['physics']['vel'] = 500 * dt # Mudar
 
     if event == GameEventType.P1_SCORED:
         game_state['p1_score'] += 1
         ball['physics']['dir'] = [1, 0]
-        initialize_ball_pos()
+        initialize_ball_pos_and_vel()
         initialize_p1_paddle_pos()
         initialize_p2_paddle_pos()
         handle_event(GameEventType.PAUSE)
@@ -187,7 +201,7 @@ def handle_event(event: GameEventType, dt = 1/FRAMERATE):
     if event == GameEventType.P2_SCORED:
         game_state['p2_score'] += 1
         ball['physics']['dir'] = [-1, 0]
-        initialize_ball_pos()
+        initialize_ball_pos_and_vel()
         initialize_p1_paddle_pos()
         initialize_p2_paddle_pos()
         handle_event(GameEventType.PAUSE)
@@ -213,25 +227,35 @@ def update(dt = 1/FRAMERATE):
     or check_border_collision(LOWER_BORDER, ball):
         ball['physics']['dir'][1] *= -1
 
-    ball['rect']['x'] = ball['rect']['x'] + ball['physics']['vel'] * ball['physics']['dir'][0]
-    ball['rect']['y'] = ball['rect']['y'] + ball['physics']['vel'] * ball['physics']['dir'][1]
+    ball['rect']['x'] += ball['physics']['vel'] * ball['physics']['dir'][0] * dt
+    ball['rect']['y'] += ball['physics']['vel'] * ball['physics']['dir'][1] * dt
 
 
-    if check_border_collision([[0,0],[0,WINDOW_HEIGHT]], ball):
+    if check_border_collision(LEFT_BORDER, ball):
         handle_event(GameEventType.P2_SCORED)
 
-    if check_border_collision([[WINDOW_WIDTH,0],[WINDOW_WIDTH,WINDOW_HEIGHT]], ball):
+    if check_border_collision(RIGHT_BORDER, ball):
         handle_event(GameEventType.P1_SCORED)
 
 
     if check_paddle_collision(p1_paddle, ball) or check_paddle_collision(p2_paddle, ball):
-        paddle = p1_paddle if ball['rect']['x'] < WINDOW_WIDTH / 2 else p2_paddle
+        is_p1 = ball['rect']['x'] < WINDOW_WIDTH / 2
 
-        paddle_midpos = paddle['rect']['y'] + (PADDLE_HEIGHT / 2)
-        ball_midpos = ball['rect']['y'] + (BALL_WIDTH / 2)
+        paddle, coeff = (p1_paddle, 1) if is_p1 else (p2_paddle, -1)
 
-        ball['physics']['dir'][1] = .5 * (1 if (ball_midpos - paddle_midpos) > 0 else -1)
-        ball['physics']['dir'][0] *= -1
+
+        paddle_center = center(paddle['rect'])
+        ball_center   = center(ball['rect'])
+
+
+        dir_x, dir_y = abs(paddle_center['x'] - ball_center['x']) * coeff, ball_center['y'] - paddle_center['y']
+
+        if abs(dir_y) < 5: dir_y = 0
+
+        magnitude = math.sqrt(dir_x**2 + dir_y**2)
+
+        ball['physics']['vel'] = clamp(abs(dir_y / magnitude))(min_val=0.5, max_val=1) * BALL_VEL
+        ball['physics']['dir'] = [dir_x / magnitude, dir_y / magnitude]
 
 def check_paddle_collision(paddle, ball):
     paddle_rect = SDL_FRect(**paddle['rect'])
@@ -299,7 +323,7 @@ def main():
         elif keystate[SDL_SCANCODE_DOWN]:
             handle_event(GameEventType.P2_DOWN)
 
-        update(None)
+        update()
 
 
         # TODO
